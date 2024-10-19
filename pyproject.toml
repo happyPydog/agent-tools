@@ -1,8 +1,9 @@
 [tool.poetry]
-name = "agent-tool"
+name = "agent_tools"
 version = "0.1.0"
 description = "General agent tool"
 authors = ["happyPydog <lanc840930.mg09@nycu.edu.tw>"]
+packages = [{ include = "agent_tools", from = "src" }]
 readme = "README.md"
 
 [tool.poetry.dependencies]
@@ -25,6 +26,24 @@ mypy = "^1.12.0"
 black = "^24.10.0"
 flake8 = "^7.1.1"
 
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+
+[tool.black]
+line-length = 120
+quiet = true
+
+
+[tool.mypy]
+ignore_missing_imports = true
+warn_return_any = true
+check_untyped_defs = true
+
+
+[tool.flake8]
+max-line-length = 120
+indent-size = 4
+ignore = ["E501", "E704"]
