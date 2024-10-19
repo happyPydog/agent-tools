@@ -11,11 +11,11 @@ install:
 	poetry install
 
 format:
-	poetry run isort src/ragtor
-	poetry run black src/ragtor
+	poetry run isort src/agent_tools
+	poetry run black src/agent_tools
 
 lint:
-	poetry run isort --check src/ragtor
-	poetry run black --check src/ragtor
-	poetry run flake8 src/ragtor --max-line-length=119
-	poetry run mypy src/ragtor --ignore-missing-imports --check-untyped-defs 
+	poetry run isort --check src/agent_tools
+	poetry run black --check src/agent_tools
+	poetry run flake8 src/agent_tools --max-line-length=120
+	poetry run mypy src/agent_tools --ignore-missing-imports --check-untyped-defs 
