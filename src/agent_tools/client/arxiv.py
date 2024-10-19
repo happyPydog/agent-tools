@@ -36,18 +36,21 @@ class ArxivClient:
 
         self.ensure_ssl_verified()
 
-    def ensure_ssl_verified(self) -> None:
+    @staticmethod
+    def ensure_ssl_verified() -> None:
         ssl._create_default_https_context = ssl._create_unverified_context
 
     def search(self, id_list: list[str]) -> Iterable[ArxivResult]:
         search = ArxivSearch(id_list=id_list)
         yield from self.client.results(search=search)
 
-    def extract_id(self, url: str) -> str | None:
+    @staticmethod
+    def extract_id(url: str) -> str | None:
         match = re.search(r"(\d{4}\.\d{4,5})(v\d+)?", url)
         return match.group(1) if match else None
 
-    def parse_references(self, text: str) -> list[str]:
+    @staticmethod
+    def parse_references(text: str) -> list[str]:
         arxiv_urls = re.findall(r"(https?://arxiv\.org/abs/\d{4}\.\d{4,5}(v\d+)?)", text)
         return [match[0] for match in arxiv_urls]
 
@@ -80,7 +83,7 @@ class ArxivClient:
         id_list = list(filter(None, (self.extract_id(url) for url in urls)))
 
         for paper in self.search(id_list):
-            filename = re.sub(r"[^\w]+", "_", paper.title) + ".pdf"
+            filename = re.sub(r"\W+", "_", paper.title) + ".pdf"
             paper.download_pdf(dirpath=save_dir, filename=filename)
 
 
