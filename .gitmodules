@@ -1,3 +1,0 @@
-[submodule "src/agent_tools/magentic"]
-	path = src/agent_tools/magentic
-	url = https://github.com/jackmpcollins/magentic.git
