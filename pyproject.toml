@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "agent-tool"
+version = "0.1.0"
+description = "General agent tool"
+authors = ["happyPydog <lanc840930.mg09@nycu.edu.tw>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pydantic = "^2.9.2"
+openai = "^1.52.0"
+magentic = "^0.32.0"
+logfire = "^1.2.0"
+tiktoken = "^0.8.0"
+langfuse = "^2.52.1"
+python-dotenv = "^1.0.1"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+pytest-cov = "^5.0.0"
+pytest-mock = "^3.14.0"
+isort = "^5.13.2"
+mypy = "^1.12.0"
+black = "^24.10.0"
+flake8 = "^7.1.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
