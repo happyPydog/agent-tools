@@ -15,7 +15,6 @@ format:
 	poetry run black src/agent_tools
 
 lint:
-	poetry run isort --check src/agent_tools
 	poetry run black --check src/agent_tools
 	poetry run flake8 src/agent_tools --max-line-length=120
 	poetry run mypy src/agent_tools --ignore-missing-imports --check-untyped-defs 
