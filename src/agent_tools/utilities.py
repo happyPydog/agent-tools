@@ -1,10 +1,25 @@
 """Utilities helper functions."""
 
 import os
-from typing import Any
+import types
+from functools import wraps
+from typing import (
+    Any,
+    Callable,
+    ParamSpec,
+    Sequence,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from openai import OpenAI
 from typing_extensions import TypeIs
+
+P = ParamSpec("P")
+R = TypeVar("R")
+TypeT = type[R]
 
 
 def get_env_var(name: str) -> str:
@@ -17,11 +32,23 @@ def is_openai_model_type(llm: Any) -> TypeIs[OpenAI]:
     return isinstance(llm, OpenAI) or issubclass(llm, OpenAI)
 
 
-if __name__ == "__main__":
-    print(get_env_var("HOME"))
-    print(is_openai_model_type(OpenAI))
-    print(is_openai_model_type(OpenAI()))
+def is_union_type(type_: type) -> bool:
+    """Return True if the type is a union type."""
+    type_ = get_origin(type_) or type_
+    return type_ is Union or type_ is types.UnionType
 
-    from langfuse.openai import OpenAI as LangFuseOpenAI
 
-    print(is_openai_model_type(LangFuseOpenAI))
+def split_union_type(type_: TypeT) -> Sequence[TypeT]:
+    """Split a union type into its constituent types."""
+    return get_args(type_) if is_union_type(type_) else [type_]
+
+
+def discard_none_arguments(func: Callable[P, R]) -> Callable[P, R]:
+    """Decorator to discard function arguments with value `None`"""
+
+    @wraps(func)
+    def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
+        non_none_kwargs = {key: value for key, value in kwargs.items() if value is not None}
+        return func(*args, **non_none_kwargs)  # type: ignore[arg-type]
+
+    return wrapped

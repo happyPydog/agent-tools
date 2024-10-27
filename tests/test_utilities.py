@@ -1,6 +1,7 @@
 """Test the utilities helper functions."""
 
 import pytest
+
 from agent_tools.utilities import get_env_var, is_openai_model_type
 
 
@@ -15,9 +16,9 @@ def test_get_env_var(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_is_openai_model_type(monkeypatch: pytest.MonkeyPatch):
-    from openai import OpenAI, AzureOpenAI
-    from langfuse.openai import OpenAI as LangFuseOpenAI
     from langfuse.openai import AzureOpenAI as LangFuseAzureOpenAI
+    from langfuse.openai import OpenAI as LangFuseOpenAI
+    from openai import AzureOpenAI, OpenAI
 
     monkeypatch.setenv("OPENAI_API_KEY", "test_openai_api_key")
     monkeypatch.setenv("OPENAI_BASE_URL", "test_openai_base_url")
