@@ -58,3 +58,6 @@ check_untyped_defs = true
 max-line-length = 120
 indent-size = 4
 ignore = ["E501", "E704"]
+
+[tool.isort]
+profile = "black"
