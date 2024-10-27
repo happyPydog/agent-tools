@@ -1,6 +1,7 @@
 import asyncio
-import time
 import os
+import time
+
 from dotenv import load_dotenv
 from magentic import chatprompt
 from magentic.chat_model.message import SystemMessage, UserMessage
