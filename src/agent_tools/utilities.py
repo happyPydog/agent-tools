@@ -15,6 +15,7 @@ from typing import (
 )
 
 from openai import OpenAI
+from pydantic import BaseModel
 from typing_extensions import TypeIs
 
 P = ParamSpec("P")
@@ -36,6 +37,16 @@ def is_union_type(type_: type) -> bool:
     """Return True if the type is a union type."""
     type_ = get_origin(type_) or type_
     return type_ is Union or type_ is types.UnionType
+
+
+def is_builtin_type(type_: type) -> bool:
+    """Return True if the type is a builtin type."""
+    return type_.__module__ == "builtins"
+
+
+def is_pydantic_model_type(type_: type) -> bool:
+    """Return True if the type is a Pydantic model type."""
+    return issubclass(type_, BaseModel)
 
 
 def split_union_type(type_: TypeT) -> Sequence[TypeT]:

@@ -11,7 +11,6 @@ from typing import (
     Generic,
     Iterable,
     Literal,
-    OrderedDict,
     ParamSpec,
     Protocol,
     Sequence,
@@ -71,6 +70,7 @@ class BaseOpenAIPromptFunction(Generic[P, R]):
         messages: Sequence[MessageLikeType],
         llm: LLM_Type | None,
         model_name: OpenAIModel | None = None,
+        response_format: Any | None = None,
     ) -> None:
         self._name = name
         self._llm = llm
@@ -80,11 +80,12 @@ class BaseOpenAIPromptFunction(Generic[P, R]):
         )
         self._messages = messages
         self._model_name = model_name
-        self._return_types = list(split_union_type(return_type))
+        self._return_types = split_union_type(return_type)
+        self._response_format = response_format
 
     @property
-    def return_types(self) -> list[type[R]]:
-        return self._return_types.copy()
+    def return_types(self) -> Sequence[type[R]]:
+        return self._return_types
 
     @property
     def model_name(self) -> str:
@@ -93,6 +94,10 @@ class BaseOpenAIPromptFunction(Generic[P, R]):
     @property
     def llm(self) -> LLM_Type:
         return self._llm or self.get_llm()
+
+    @property
+    def response_format(self) -> Any | None:
+        return self._response_format
 
     def get_model_name(self) -> str:
         return "gpt-4o"
@@ -103,44 +108,67 @@ class BaseOpenAIPromptFunction(Generic[P, R]):
     def format(self, *args: P.args, **kwargs: P.kwargs) -> Iterable[OpenAIMessageType]:
         """Format the messages with the given arguments."""
         bound_args = self.get_bound_args(*args, **kwargs)
-        messages = []
+        formatted_messages = []
         for message in self._messages:
-            if isinstance(message, str):
-                message = UserMessage(message)
-            elif isinstance(message, tuple):
-                role, text = message[0].lower(), message[1]
-                match role:
-                    case "human":
-                        message = UserMessage(text)
-                    case "system":
-                        message = SystemMessage(text)
-                    case "ai":
-                        message = AIMessage(text)
-                    case _:
-                        raise ValueError(f"Invalid role: '{role}' in message: {message}")
-            elif isinstance(message, Message):
-                ...
-            else:
-                raise TypeError(f"Invalid message type: {type(message)}")
-            messages.append(message.format(**bound_args))
-        return cast(Iterable[OpenAIMessageType], messages)
+            msg_obj: Message[Any] = self._format(message)
+            formatted_message = msg_obj.format(**bound_args)
+            formatted_messages.append(formatted_message)
+        return cast(Iterable[OpenAIMessageType], formatted_messages)
 
-    def get_bound_args(self, *args: P.args, **kwargs: P.kwargs) -> OrderedDict[str, Any]:
+    def _format(self, message: MessageLikeType) -> Message[Any]:
+        if isinstance(message, str):
+            return UserMessage(message)
+
+        if (
+            isinstance(message, tuple)
+            and len(message) == 2
+            and isinstance(message[0], str)
+            and isinstance(message[1], str)
+        ):
+            role, text = message[0].lower(), message[1]
+            role_map = {"user": UserMessage, "system": SystemMessage, "ai": AIMessage}
+            if role_cls := role_map.get(role):
+                return role_cls(text)
+            raise ValueError(f"Invalid role: '{role}' in message: {message}")
+
+        if isinstance(message, Message):
+            return message
+
+        raise TypeError(f"Invalid message type: {type(message)}. Expected str, tuple, or Message instance.")
+
+    def get_bound_args(self, *args: P.args, **kwargs: P.kwargs) -> dict[str, Any]:
         """Get the bound arguments for the function."""
         bound_args = self._signature.bind(*args, **kwargs)
         bound_args.apply_defaults()
         return bound_args.arguments
+
+    def parse_completion_content(self, completion: ChatCompletion) -> R:
+        return cast(R, completion.choices[0].message.content)
 
 
 class AsyncOpenAIPromptFunction(BaseOpenAIPromptFunction[P, R], Generic[P, R], AsyncPromptFunction[P, R]):
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """Async OpenAI prompt function."""
         messages = self.format(*args, **kwargs)
+        if self.response_format:
+            chat_completion = await cast(
+                ChatCompletion,
+                self.llm.beta.chat.completions.parse(
+                    model=self.model_name,
+                    messages=messages,
+                    response_format=self.response_format,
+                ),
+            )  # type: ignore[misc]
+            message = chat_completion.choices[0].message
+            if getattr(message, "refusal", None):
+                return cast(R, message.refusal)
+            return cast(R, message.parsed)  # type: ignore[attr-defined]
+
         chat_completion = await self.llm.chat.completions.create(
             model=self.model_name,
             messages=messages,
         )  # type: ignore[misc]
-        return cast(R, chat_completion.choices[0].message.content)
+        return cast(R, self.parse_completion_content(chat_completion))
 
     @final
     def get_llm(self) -> AsyncOpenAI:
@@ -154,6 +182,20 @@ class OpenAIPromptFunction(BaseOpenAIPromptFunction[P, R], Generic[P, R], Prompt
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """OpenAI prompt function."""
         messages = self.format(*args, **kwargs)
+        if self.response_format:
+            chat_completion = cast(
+                ChatCompletion,
+                self.llm.beta.chat.completions.parse(
+                    model=self.model_name,
+                    messages=messages,
+                    response_format=self.response_format,
+                ),
+            )
+            message = chat_completion.choices[0].message
+            if message.refusal:
+                return cast(R, message.refusal)
+            return cast(R, message.parsed)  # type: ignore[attr-defined]
+
         chat_completion = cast(
             ChatCompletion,
             self.llm.chat.completions.create(
@@ -161,7 +203,7 @@ class OpenAIPromptFunction(BaseOpenAIPromptFunction[P, R], Generic[P, R], Prompt
                 messages=messages,
             ),
         )
-        return cast(R, chat_completion.choices[0].message.content)
+        return cast(R, self.parse_completion_content(chat_completion))
 
     @final
     def get_llm(self) -> OpenAI:
@@ -175,6 +217,7 @@ def openai_prompt(
     *messages: MessageLikeType,
     llm: LLM_Type | None = None,
     model_name: OpenAIModel | None = None,
+    response_format: Any | None = None,
 ) -> PromptDecorator:
     def decorator(
         func: Callable[P, Awaitable[R]] | Callable[P, R],
@@ -188,6 +231,7 @@ def openai_prompt(
                 messages=messages,
                 llm=llm,
                 model_name=model_name,
+                response_format=response_format,
             )
             return cast(AsyncOpenAIPromptFunction[P, R], update_wrapper(async_prompt_func, func))
 
@@ -198,6 +242,7 @@ def openai_prompt(
             messages=messages,
             llm=llm,
             model_name=model_name,
+            response_format=response_format,
         )
         return cast(OpenAIPromptFunction[P, R], update_wrapper(prompt_func, func))
 
