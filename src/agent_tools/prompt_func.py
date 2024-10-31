@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import inspect
+from collections import OrderedDict
 from collections.abc import Callable
 from functools import update_wrapper
+from types import MethodType
 from typing import (
     Any,
     Awaitable,
@@ -136,14 +138,23 @@ class BaseOpenAIPromptFunction(Generic[P, R]):
 
         raise TypeError(f"Invalid message type: {type(message)}. Expected str, tuple, or Message instance.")
 
-    def get_bound_args(self, *args: P.args, **kwargs: P.kwargs) -> dict[str, Any]:
+    def get_bound_args(self, *args: P.args, **kwargs: P.kwargs) -> OrderedDict[str, Any]:
         """Get the bound arguments for the function."""
         bound_args = self._signature.bind(*args, **kwargs)
         bound_args.apply_defaults()
+
+        bound_args.arguments.pop("self", None)  # Avoid passing `self` twice
         return bound_args.arguments
 
     def parse_completion_content(self, completion: ChatCompletion) -> R:
         return cast(R, completion.choices[0].message.content)
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs):
+        """OpenAI prompt function."""
+        return NotImplemented
+
+    def __get__(self, instance: object, owner: object) -> MethodType:
+        return MethodType(self, instance)
 
 
 class AsyncOpenAIPromptFunction(BaseOpenAIPromptFunction[P, R], Generic[P, R], AsyncPromptFunction[P, R]):
