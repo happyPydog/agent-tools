@@ -1,6 +1,8 @@
 """Utilities helper functions."""
 
+import json
 import os
+import re
 import types
 from functools import wraps
 from typing import (
@@ -63,3 +65,66 @@ def discard_none_arguments(func: Callable[P, R]) -> Callable[P, R]:
         return func(*args, **non_none_kwargs)  # type: ignore[arg-type]
 
     return wrapped
+
+
+def extract_json_content(text: str) -> list[dict[str, str]] | None | Any:
+    """
+    Extract JSON content enclosed within ```json ... ``` from the given text.
+
+    This function searches for a JSON block in the provided text that is enclosed within triple backticks
+    and labeled as 'json'. It cleans the JSON text by removing unescaped newline characters within strings,
+    which are invalid in JSON. The cleaned JSON text is then parsed and returned as a list of dictionaries.
+
+    Args:
+        text (str): The input text containing the JSON block.
+
+    Returns:
+        Optional[List[Dict[str, str]]]: The parsed JSON content as a list of dictionaries,
+        or None if no valid JSON block is found.
+    """
+    json_text = _extract_json_block(text)
+    if json_text is None:
+        return None
+
+    cleaned_json_text = _clean_json_text(json_text)
+
+    try:
+        return json.loads(cleaned_json_text)
+    except json.JSONDecodeError:
+        return None
+
+
+def _extract_json_block(text: str) -> str | None:
+    """
+    Extract the JSON block labeled with ```json from the text.
+
+    Args:
+        text (str): The input text.
+
+    Returns:
+        Optional[str]: The extracted JSON text, or None if not found.
+    """
+    pattern = re.compile(r"```json\s*(\[[\s\S]*?\])\s*```", re.MULTILINE)
+    match = pattern.search(text)
+    return match.group(1) if match else None
+
+
+def _clean_json_text(json_text: str) -> str:
+    """
+    Clean the JSON text by removing unescaped newlines within strings.
+
+    Args:
+        json_text (str): The raw JSON text.
+
+    Returns:
+        str: The cleaned JSON text suitable for parsing.
+    """
+    # Regex pattern to find all string literals in JSON
+    string_pattern = re.compile(r"\"(.*?)(?<!\\)\"", re.DOTALL)
+
+    def replace_newlines(match: re.Match) -> str:
+        # Replace unescaped newlines within strings with spaces
+        string_content = match.group(1).replace("\n", " ")
+        return f'"{string_content}"'
+
+    return string_pattern.sub(replace_newlines, json_text)
