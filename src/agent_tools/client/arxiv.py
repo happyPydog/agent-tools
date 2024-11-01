@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import re
 import ssl
 import tempfile
@@ -94,9 +95,8 @@ class ArxivClient:
                     pdf_path = paper.download_pdf(dirpath=temp_dir)
                     doc = cast(fitz.Document, fitz.open(pdf_path))
                     text = "".join([page.get_text() for page in doc])  # type: ignore
-
                 papers.append(Paper(title=paper.title, text=text, url=paper.entry_id))  # type: ignore
-                break
+
         return papers
 
     def fetch_papers_with_references_by_query(self, queries: Iterable[str]) -> list[Paper]:
@@ -126,6 +126,19 @@ class ArxivClient:
                 filename = re.sub(r"\W+", "_", paper.title) + ".pdf"
                 paper.download_pdf(dirpath=save_dir, filename=filename)
 
+    def load_paper_as_file_by_url(self, urls: str) -> io.BytesIO:
+        id_list = list(filter(None, (self.extract_id(url) for url in urls)))
+
+        pdf_files = []
+        for paper in self.search_by_url(id_list):
+            with tempfile.TemporaryDirectory() as temp_dir:
+                pdf_path = paper.download_pdf(dirpath=temp_dir)
+                doc = cast(fitz.Document, fitz.open(pdf_path))
+                text = "".join([page.get_text() for page in doc])
+                pdf_content = io.BytesIO(text)
+            pdf_files.append(pdf_content)
+        return pdf_files
+
 
 arxiv_client = ArxivClient()
 
@@ -148,14 +161,19 @@ def fetch_papers_by_query(queries: str | Iterable[str], parse_reference: bool = 
     return arxiv_client.fetch_papers_by_query(queries)
 
 
-def download_papers_by_url(urls: str | Iterable[str], save_dir: str = "./") -> None:
+def load_papers_by_url(urls: str | Iterable[str], save_dir: str = "./") -> None:
     urls = flatten([urls])
     arxiv_client.download_papers_by_url(urls, save_dir)
 
 
-def download_papers_by_query(queries: str | Iterable[str], save_dir: str = "./") -> None:
+def load_papers_by_query(queries: str | Iterable[str], save_dir: str = "./") -> None:
     queries = flatten([queries])
     arxiv_client.download_papers_by_query(queries, save_dir)
+
+
+def load_papers_as_file_by_url(urls: str | Iterable[str]):
+    urls = flatten([urls])
+    return arxiv_client.load_paper_as_file_by_url(urls)
 
 
 def extract_refs(papers: Iterable[Paper]) -> list[Paper]:
